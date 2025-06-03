@@ -75,11 +75,15 @@ func (node BNode) getOffset(idx uint16) uint16 {
 
 // 更改偏移量
 func (node BNode) setOffset(idx uint16, val uint16) {
+	if idx == 0 {
+		return
+	}
 	pos := 4 + 8*node.nkeys() + 2*(idx-1)
 	//取两个字节的偏移量
 	binary.LittleEndian.PutUint16(node[pos:], val)
 }
 
+// 得到索引之后的键值对位置
 func (node BNode) kvPos(idx uint16) uint16 {
 	//assert(idx <= node.nkeys())
 	return 4 + 8*node.nkeys() + 2*node.nkeys() + node.getOffset(idx)
@@ -104,7 +108,7 @@ func (node BNode) getVal(idx uint16) []byte {
 
 // node的大小
 func (node BNode) nbytes() uint16 {
-	return node.kvPos(node.btype())
+	return node.kvPos(node.nkeys())
 }
 
 // node添加键值对
@@ -142,12 +146,13 @@ func leafInsert(new BNode, old BNode, idx uint16, key []byte, val []byte) {
 }
 
 func leafUpdata(new BNode, old BNode, idx uint16, key []byte, val []byte) {
-	new.setHeader(BNODE_LEAF, old.nbytes())
+	new.setHeader(BNODE_LEAF, old.nkeys())
 	nodeAppendRange(new, old, 0, 0, idx)
 	nodeAppendKV(new, idx, 0, key, val)
 	nodeAppendRange(new, old, idx+1, idx+1, old.nkeys()-idx-1)
 }
 
+// nodeLookupLE 查找小于等于给定键的最大索引
 func nodeLookupLE(node BNode, key []byte) uint16 {
 	nkeys := node.nkeys()
 	var i uint16
@@ -156,7 +161,7 @@ func nodeLookupLE(node BNode, key []byte) uint16 {
 		if cmp == 0 {
 			return i
 		}
-		if cmp > 1 {
+		if cmp > 0 {
 			return i - 1
 		}
 	}
