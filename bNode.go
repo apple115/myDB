@@ -196,6 +196,7 @@ func nodeSplit2(left BNode, right BNode, old BNode) {
 	nodeAppendRange(right, old, 0, nleft, nright)
 }
 
+// nodeSplit3 将节点分裂为三个节点，如果节点很大
 func nodeSplit3(old BNode) (uint16, [3]BNode) {
 	if old.nbytes() <= BTREE_PAGE_SIZE {
 		old = old[:BTREE_PAGE_SIZE]
@@ -213,7 +214,7 @@ func nodeSplit3(old BNode) (uint16, [3]BNode) {
 
 	leftleft := BNode(make([]byte, BTREE_PAGE_SIZE))
 	middle := BNode(make([]byte, BTREE_PAGE_SIZE))
-	nodeSplit2(leftleft, right, old)
+	nodeSplit2(leftleft, middle,left)
 	// assert(leftleft.nbytes() <= BTREE_PAGE_SIZE)
 	return 3, [3]BNode{leftleft, middle, right} // 3 nodes
 }

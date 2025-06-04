@@ -579,8 +579,8 @@ func TestNodeSplit2(t *testing.T) {
 		}
 	})
 
-	// 测试用例3：大节点分裂（确保不超过页大小）
-	t.Run("大节点分裂", func(t *testing.T) {
+	// 测试用例3：中节点分裂（确保不超过页大小）
+	t.Run("中节点分裂", func(t *testing.T) {
 		// 创建一个大节点
 		old := BNode(make([]byte, 2*BTREE_PAGE_SIZE))
 		old.setHeader(BNODE_LEAF, 10)
@@ -609,7 +609,37 @@ func TestNodeSplit2(t *testing.T) {
 		}
 	})
 
-	// 测试用例4：内部节点分裂
+	// 测试用例4：大节点分裂（确保超过页大小）
+	t.Run("大节点分裂", func(t *testing.T) {
+		// 创建一个大节点
+		old := BNode(make([]byte, 2*BTREE_PAGE_SIZE))
+		old.setHeader(BNODE_LEAF, 10)
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%02d", i) //key
+			val := strings.Repeat("x", 500)  // 大值
+			nodeAppendKV(old, uint16(i), 0, []byte(key), []byte(val))
+		}
+
+		left := BNode(make([]byte, BTREE_PAGE_SIZE))
+		right := BNode(make([]byte, BTREE_PAGE_SIZE))
+		nodeSplit2(left, right, old)
+
+		// 验证分裂后的节点大小不超过页大小
+		if left.nbytes() > BTREE_PAGE_SIZE {
+			t.Errorf("左节点大小 %d 超过页大小 %d", left.nbytes(), BTREE_PAGE_SIZE)
+		}
+		if right.nbytes() > BTREE_PAGE_SIZE {
+			t.Errorf("右节点大小 %d 超过页大小 %d", right.nbytes(), BTREE_PAGE_SIZE)
+		}
+
+		// 验证所有键都被保留
+		totalKeys := left.nkeys() + right.nkeys()
+		if totalKeys != old.nkeys() {
+			t.Errorf("键总数不匹配: 期望 %d, 得到 %d", old.nkeys(), totalKeys)
+		}
+	})
+
+	// 测试用例5：内部节点分裂
 	t.Run("内部节点分裂", func(t *testing.T) {
 		old := BNode(make([]byte, 200))
 		old.setHeader(BNODE_NODE, 4)
@@ -630,6 +660,76 @@ func TestNodeSplit2(t *testing.T) {
 		// 验证指针被正确复制
 		if left.getPtr(0) != 100 || right.getPtr(0) != 300 {
 			t.Error("指针复制错误")
+		}
+	})
+}
+
+func TestNodeSplit3(t *testing.T) {
+	// 测试用例1：小节点不需要分裂
+	t.Run("小节点不分裂", func(t *testing.T) {
+		old := BNode(make([]byte, BTREE_PAGE_SIZE)) // 创建小节点
+		old.setHeader(BNODE_LEAF, 1)
+		nodeAppendKV(old, 0, 0, []byte("key"), []byte("val"))
+
+		count, nodes := nodeSplit3(old)
+		if count != 1 {
+			t.Errorf("期望不分裂(1个节点), 得到 %d 个节点", count)
+		}
+		if nodes[0].nkeys() != 1 {
+			t.Errorf("节点键数量错误: 期望 1, 得到 %d", nodes[0].nkeys())
+		}
+	})
+	// 测试用例2：中等大小节点分裂为2个
+	t.Run("分裂为2个节点", func(t *testing.T) {
+		old := BNode(make([]byte, BTREE_PAGE_SIZE*1.5)) // 创建中等节点
+		old.setHeader(BNODE_LEAF, 10)
+		//nbytes 大于 BTREE_PAGE_SIZE, 但小于 1.5*BTREE_PAGE_SIZE
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("key%02d", i)
+			val := strings.Repeat("x", 500) // 中等大小值
+			nodeAppendKV(old, uint16(i), 0, []byte(key), []byte(val))
+		}
+
+		count, nodes := nodeSplit3(old)
+		if count != 2 {
+			t.Errorf("期望分裂为2个节点, 得到 %d 个节点", count)
+		}
+		// 验证总键数不变
+		totalKeys := nodes[0].nkeys() + nodes[1].nkeys()
+		if totalKeys != old.nkeys() {
+			t.Errorf("键总数不匹配: 期望 %d, 得到 %d", old.nkeys(), totalKeys)
+		}
+		// 验证节点大小不超过页大小
+		if nodes[0].nbytes() > BTREE_PAGE_SIZE || nodes[1].nbytes() > BTREE_PAGE_SIZE {
+			t.Error("分裂后节点大小超过页限制")
+		}
+	})
+
+	// 测试用例3：大节点分裂为3个
+	t.Run("分裂为3个节点", func(t *testing.T) {
+		old := BNode(make([]byte, BTREE_PAGE_SIZE*2.5)) // 创建大节点
+		old.setHeader(BNODE_LEAF, 18)
+		for i := 0; i < 18; i++ {
+			key := fmt.Sprintf("key%02d", i)
+			val := strings.Repeat("y", 500) // 较大值
+			nodeAppendKV(old, uint16(i), 0, []byte(key), []byte(val))
+		}
+		fmt.Printf("old nbytes: %d\n", old.nbytes())
+
+		count, nodes := nodeSplit3(old)
+		if count != 3 {
+			t.Errorf("期望分裂为3个节点, 得到 %d 个节点", count)
+		}
+		// 验证总键数
+		totalKeys := nodes[0].nkeys() + nodes[1].nkeys() + nodes[2].nkeys()
+		if totalKeys != old.nkeys() {
+			t.Errorf("键总数不匹配: 期望 %d, 得到 %d", old.nkeys(), totalKeys)
+		}
+		// 验证所有节点大小
+		for i := 0; i < int(count); i++ {
+			if nodes[i].nbytes() > BTREE_PAGE_SIZE {
+				t.Errorf("节点 %d 大小 %d 超过页限制 %d", i, nodes[i].nbytes(), BTREE_PAGE_SIZE)
+			}
 		}
 	})
 }
