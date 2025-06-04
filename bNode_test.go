@@ -950,3 +950,102 @@ func TestNodeMerge(t *testing.T) {
         testOffset(t, new, 2, expectedEndOffset)
     })
 }
+
+func TestNodeReplace2Kid(t *testing.T) {
+    // 测试用例1：替换中间的两个子节点
+    t.Run("替换中间子节点", func(t *testing.T) {
+        // 准备原始节点（5个子节点，4个键）
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_NODE, 4)
+        nodeAppendKV(old, 0, 100, []byte("k1"), nil)
+        nodeAppendKV(old, 1, 200, []byte("k2"), nil)
+        nodeAppendKV(old, 2, 300, []byte("k3"), nil)
+        nodeAppendKV(old, 3, 400, []byte("k4"), nil)
+
+        // 准备新节点
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+
+        // 替换第1和第2个子节点（索引1和2）
+        nodeReplace2Kid(new, old, 1, 250, []byte("k2_new"))
+
+        // 验证结果
+        if new.nkeys() != 3 {
+            t.Errorf("键数量错误: 期望 3, 得到 %d", new.nkeys())
+        }
+
+        // 验证指针和键
+        testPtr(t, new, 0, 100) // 第一个指针不变
+        testPtr(t, new, 1, 250) // 新指针
+        testPtr(t, new, 2, 400) // 跳过原来的300
+
+        testKV(t, new, 0, []byte("k1"), nil)    // 第一个键不变
+        testKV(t, new, 1, []byte("k2_new"), nil) // 新键
+        testKV(t, new, 2, []byte("k4"), nil)    // 跳过原来的k3
+    })
+
+    // 测试用例2：替换开头的两个子节点
+    t.Run("替换开头子节点", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_NODE, 3)
+        nodeAppendKV(old, 0, 100, []byte("k1"), nil)
+        nodeAppendKV(old, 1, 200, []byte("k2"), nil)
+        nodeAppendKV(old, 2, 300, []byte("k3"), nil)
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeReplace2Kid(new, old, 0, 150, []byte("k1_new"))
+
+        if new.nkeys() != 2 {
+            t.Errorf("键数量错误: 期望 2, 得到 %d", new.nkeys())
+        }
+
+        testPtr(t, new, 0, 150)
+        testPtr(t, new, 1, 300)
+
+        testKV(t, new, 0, []byte("k1_new"), nil)
+        testKV(t, new, 1, []byte("k3"), nil)
+    })
+
+    // 测试用例3：替换末尾的两个子节点
+    t.Run("替换末尾子节点", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_NODE, 4)
+        nodeAppendKV(old, 0, 100, []byte("k1"), nil)
+        nodeAppendKV(old, 1, 200, []byte("k2"), nil)
+        nodeAppendKV(old, 2, 300, []byte("k3"), nil)
+        nodeAppendKV(old, 3, 400, []byte("k4"), nil)
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeReplace2Kid(new, old, 2, 350, []byte("k3_new"))
+
+        if new.nkeys() != 3 {
+            t.Errorf("键数量错误: 期望 3, 得到 %d", new.nkeys())
+        }
+
+        testPtr(t, new, 0, 100)
+        testPtr(t, new, 1, 200)
+        testPtr(t, new, 2, 350)
+
+        testKV(t, new, 0, []byte("k1"), nil)
+        testKV(t, new, 1, []byte("k2"), nil)
+        testKV(t, new, 2, []byte("k3_new"), nil)
+    })
+
+    // 测试用例4：验证偏移量正确性
+    t.Run("验证偏移量", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_NODE, 3)
+        nodeAppendKV(old, 0, 100, []byte("longkey1"), nil)
+        nodeAppendKV(old, 1, 200, []byte("k2"), nil)
+        nodeAppendKV(old, 2, 300, []byte("longkey3"), nil)
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeReplace2Kid(new, old, 1, 250, []byte("new_key"))
+
+        // 验证偏移量
+        testOffset(t, new, 0, 0)
+        expectedOffset1 := uint16(4 + len("longkey1"))
+        testOffset(t, new, 1, expectedOffset1)
+        expectedOffset2 := expectedOffset1 + uint16(4 + len("new_key"))
+        testOffset(t, new, 2, expectedOffset2)
+    })
+}

@@ -240,5 +240,14 @@ func nodeMerge(new BNode, left BNode, right BNode) {
 
 // 用1替换2个相邻链接
 func nodeReplace2Kid(new BNode, old BNode, idx uint16, ptr uint64, key []byte) {
-	panic("not implementation")
+    // 设置新节点头部信息（类型和键数量）
+    new.setHeader(BNODE_NODE, old.nkeys()-1) // 减少一个键
+
+    // 1. 复制idx之前的所有指针和键
+    nodeAppendRange(new, old, 0, 0, idx)
+
+    nodeAppendKV(new, idx, ptr, key, nil) // 添加分隔键（内部节点val为nil）
+
+    // 3. 跳过被替换的两个指针和一个键，复制剩余部分
+    nodeAppendRange(new, old, idx+1, idx+2, old.nkeys()-(idx+2))
 }
