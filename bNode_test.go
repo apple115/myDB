@@ -479,7 +479,7 @@ func TestNodeLookupLE(t *testing.T) {
 			t.Errorf("查找'blueberry'错误: 期望 1(red), 得到 %d", idx)
 		}
 		// 测试查找小于所有键的值
-		if idx := nodeLookupLE(node, []byte("aardvark")); idx != 0xFFFF { // 无符号下溢
+		if idx := nodeLookupLE(node, []byte("aardvark")); idx != 0 { // 无符号下溢
 			t.Errorf("查找'aardvark'错误: 期望 0xFFFF, 得到 %d", idx)
 		}
 		// 测试查找大于所有键的值
@@ -492,7 +492,7 @@ func TestNodeLookupLE(t *testing.T) {
 	t.Run("空节点测试", func(t *testing.T) {
 		emptyNode := BNode(make([]byte, 4))
 		emptyNode.setHeader(BNODE_LEAF, 0)
-		if idx := nodeLookupLE(emptyNode, []byte("any")); idx != 0xFFFF {
+		if idx := nodeLookupLE(emptyNode, []byte("any")); idx != 0 {
 			t.Errorf("空节点查找错误: 期望 0xFFFF, 得到 %d", idx)
 		}
 	})
@@ -501,7 +501,7 @@ func TestNodeLookupLE(t *testing.T) {
 	t.Run("边界值测试", func(t *testing.T) {
 		node := createTestNode()
 		// 测试刚好小于第一个键
-		if idx := nodeLookupLE(node, []byte("app")); idx != 0xFFFF {
+		if idx := nodeLookupLE(node, []byte("app")); idx != 0 {
 			t.Errorf("边界测试1错误: 期望 0xFFFF, 得到 %d", idx)
 		}
 		// 测试刚好大于最后一个键
@@ -520,7 +520,7 @@ func TestNodeLookupLE(t *testing.T) {
 		nodeAppendKV(node, 2, 0, []byte("banana"), []byte("yellow"))
 
 		// 应该返回第一个匹配的位置
-		if idx := nodeLookupLE(node, []byte("apple")); idx != 0 {
+		if idx := nodeLookupLE(node, []byte("apple")); idx != 1 {
 			t.Errorf("重复键测试错误: 期望 0, 得到 %d", idx)
 		}
 	})

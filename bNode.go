@@ -23,6 +23,8 @@ const (
 	BNODE_LEAF = 2 // leaf nodes with values
 )
 
+const HEADER = 4
+
 const BTREE_PAGE_SIZE = 4096
 const BTREE_MAX_KEY_SIZE = 1000
 const BTREE_MAX_VAL_SIZE = 3000
@@ -53,14 +55,14 @@ func (node BNode) setHeader(btype uint16, nkeys uint16) {
 // 读取和写入指针数组（用于内部节点）
 func (node BNode) getPtr(idx uint16) uint64 {
 	// assert(idx < node.nkeys())
-	pos := 4 + 8*idx
+	pos := HEADER + 8*idx
 	return binary.LittleEndian.Uint64(node[pos:])
 }
 
 // 设置索引之后的键
 func (node BNode) setPtr(idx uint16, val uint64) {
 	// assert(idx < node.nkeys())
-	pos := 4 + 8*idx
+	pos := HEADER + 8*idx
 	binary.LittleEndian.PutUint64(node[pos:], val)
 }
 
@@ -69,7 +71,7 @@ func (node BNode) getOffset(idx uint16) uint16 {
 	if idx == 0 {
 		return 0
 	}
-	pos := 4 + 8*node.nkeys() + 2*(idx-1)
+	pos := HEADER + 8*node.nkeys() + 2*(idx-1)
 	return binary.LittleEndian.Uint16(node[pos:])
 }
 
@@ -78,7 +80,7 @@ func (node BNode) setOffset(idx uint16, val uint16) {
 	if idx == 0 {
 		return
 	}
-	pos := 4 + 8*node.nkeys() + 2*(idx-1)
+	pos := HEADER + 8*node.nkeys() + 2*(idx-1)
 	//取两个字节的偏移量
 	binary.LittleEndian.PutUint16(node[pos:], val)
 }
@@ -86,7 +88,7 @@ func (node BNode) setOffset(idx uint16, val uint16) {
 // 得到索引之后的键值对位置
 func (node BNode) kvPos(idx uint16) uint16 {
 	//assert(idx <= node.nkeys())
-	return 4 + 8*node.nkeys() + 2*node.nkeys() + node.getOffset(idx)
+	return HEADER + 8*node.nkeys() + 2*node.nkeys() + node.getOffset(idx)
 }
 
 // 以 slice 形式获取第 n 个 key 数据。
@@ -155,17 +157,17 @@ func leafUpdata(new BNode, old BNode, idx uint16, key []byte, val []byte) {
 // nodeLookupLE 查找小于等于给定键的最大索引
 func nodeLookupLE(node BNode, key []byte) uint16 {
 	nkeys := node.nkeys()
-	var i uint16
-	for i = 0; i < nkeys; i++ {
+	found := uint16(0)
+	for i := uint16(1); i < nkeys; i++ {
 		cmp := bytes.Compare(node.getKey(i), key)
-		if cmp == 0 {
-			return i
+		if cmp <= 0 {
+			found = i
 		}
-		if cmp > 0 {
-			return i - 1
+		if cmp >= 0 {
+			break
 		}
 	}
-	return i - 1
+	return found
 }
 
 // 将节点分裂为两个节点
@@ -214,7 +216,22 @@ func nodeSplit3(old BNode) (uint16, [3]BNode) {
 
 	leftleft := BNode(make([]byte, BTREE_PAGE_SIZE))
 	middle := BNode(make([]byte, BTREE_PAGE_SIZE))
-	nodeSplit2(leftleft, middle,left)
+	nodeSplit2(leftleft, middle, left)
 	// assert(leftleft.nbytes() <= BTREE_PAGE_SIZE)
 	return 3, [3]BNode{leftleft, middle, right} // 3 nodes
+}
+
+// 从leafNode 移除key
+func leafDelete(new BNode, old BNode, idx uint16) {
+
+}
+
+// 合并两个节点成一个
+func nodeMerge(new BNode, left BNode, right BNode) {
+
+}
+
+// 用1替换2个相邻链接
+func nodeReplace2Kid(new BNode, old BNode, idx uint16, ptr uint64, key []byte) {
+
 }
