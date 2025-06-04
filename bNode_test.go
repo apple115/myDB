@@ -733,3 +733,124 @@ func TestNodeSplit3(t *testing.T) {
 		}
 	})
 }
+
+func TestNodeMerge(t *testing.T) {
+    // 测试用例1：合并两个小节点
+    t.Run("合并两个小节点", func(t *testing.T) {
+        // 准备左节点
+        left := BNode(make([]byte, BTREE_PAGE_SIZE))
+        left.setHeader(BNODE_LEAF, 2)
+        nodeAppendKV(left, 0, 0, []byte("key1"), []byte("val1"))
+        nodeAppendKV(left, 1, 0, []byte("key2"), []byte("val2"))
+
+        // 准备右节点
+        right := BNode(make([]byte, BTREE_PAGE_SIZE))
+        right.setHeader(BNODE_LEAF, 2)
+        nodeAppendKV(right, 0, 0, []byte("key3"), []byte("val3"))
+        nodeAppendKV(right, 1, 0, []byte("key4"), []byte("val4"))
+
+        // 准备合并后的节点
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeMerge(new, left, right)
+
+        // 验证合并结果
+        if new.nkeys() != 4 {
+            t.Errorf("合并后键数量错误: 期望 4, 得到 %d", new.nkeys())
+        }
+        testKV(t, new, 0, []byte("key1"), []byte("val1"))
+        testKV(t, new, 1, []byte("key2"), []byte("val2"))
+        testKV(t, new, 2, []byte("key3"), []byte("val3"))
+        testKV(t, new, 3, []byte("key4"), []byte("val4"))
+    })
+
+    // 测试用例2：合并空节点
+    t.Run("合并空节点", func(t *testing.T) {
+        // 准备左节点（空节点）
+        left := BNode(make([]byte, BTREE_PAGE_SIZE))
+        left.setHeader(BNODE_LEAF, 0)
+
+        // 准备右节点
+        right := BNode(make([]byte, BTREE_PAGE_SIZE))
+        right.setHeader(BNODE_LEAF, 1)
+        nodeAppendKV(right, 0, 0, []byte("key1"), []byte("val1"))
+
+        // 准备合并后的节点
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeMerge(new, left, right)
+
+        // 验证合并结果
+        if new.nkeys() != 1 {
+            t.Errorf("合并后键数量错误: 期望 1, 得到 %d", new.nkeys())
+        }
+        testKV(t, new, 0, []byte("key1"), []byte("val1"))
+    })
+
+    // 测试用例3：合并大节点
+    t.Run("合并大节点", func(t *testing.T) {
+        // 准备左节点（多个键值对）
+        left := BNode(make([]byte, BTREE_PAGE_SIZE))
+        left.setHeader(BNODE_LEAF, 5)
+        for i := 0; i < 5; i++ {
+            key := fmt.Sprintf("left%02d", i)
+            val := fmt.Sprintf("val%02d", i)
+            nodeAppendKV(left, uint16(i), 0, []byte(key), []byte(val))
+        }
+
+        // 准备右节点（多个键值对）
+        right := BNode(make([]byte, BTREE_PAGE_SIZE))
+        right.setHeader(BNODE_LEAF, 5)
+        for i := 0; i < 5; i++ {
+            key := fmt.Sprintf("right%02d", i)
+            val := fmt.Sprintf("val%02d", i)
+            nodeAppendKV(right, uint16(i), 0, []byte(key), []byte(val))
+        }
+
+        // 准备合并后的节点
+        new := BNode(make([]byte, 2*BTREE_PAGE_SIZE))
+        nodeMerge(new, left, right)
+
+        // 验证合并结果
+        if new.nkeys() != 10 {
+            t.Errorf("合并后键数量错误: 期望 10, 得到 %d", new.nkeys())
+        }
+        // 验证左半部分键值对
+        for i := 0; i < 5; i++ {
+            key := fmt.Sprintf("left%02d", i)
+            val := fmt.Sprintf("val%02d", i)
+            testKV(t, new, uint16(i), []byte(key), []byte(val))
+        }
+        // 验证右半部分键值对
+        for i := 0; i < 5; i++ {
+            key := fmt.Sprintf("right%02d", i)
+            val := fmt.Sprintf("val%02d", i)
+            testKV(t, new, uint16(i+5), []byte(key), []byte(val))
+        }
+    })
+
+    // 测试用例4：验证偏移量正确性
+    t.Run("验证偏移量正确性", func(t *testing.T) {
+        // 准备左节点
+        left := BNode(make([]byte, BTREE_PAGE_SIZE))
+        left.setHeader(BNODE_LEAF, 1)
+        nodeAppendKV(left, 0, 0, []byte("longkey"), []byte("longvalue"))
+
+        // 准备右节点
+        right := BNode(make([]byte, BTREE_PAGE_SIZE))
+        right.setHeader(BNODE_LEAF, 1)
+        nodeAppendKV(right, 0, 0, []byte("key"), []byte("value"))
+
+        // 准备合并后的节点
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        nodeMerge(new, left, right)
+
+        // 验证偏移量
+        // 第一个键值对偏移量应为0
+        testOffset(t, new, 0, 0)
+        // 第二个键值对偏移量应为第一个键值对的总长度
+        expectedOffset := uint16(4 + len("longkey") + len("longvalue"))
+        testOffset(t, new, 1, expectedOffset)
+        // 结束偏移量应为两个键值对的总长度
+        expectedEndOffset := expectedOffset + uint16(4 + len("key") + len("value"))
+        testOffset(t, new, 2, expectedEndOffset)
+    })
+}
