@@ -446,6 +446,102 @@ func TestLeafUpdata(t *testing.T) {
 	})
 }
 
+func TestLeafDelete(t *testing.T) {
+    // 测试用例1：删除中间位置的键
+    t.Run("删除中间键", func(t *testing.T) {
+        // 准备原始节点(3个键值对)
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_LEAF, 3)
+        nodeAppendKV(old, 0, 0, []byte("key1"), []byte("val1"))
+        nodeAppendKV(old, 1, 0, []byte("key2"), []byte("val2"))
+        nodeAppendKV(old, 2, 0, []byte("key3"), []byte("val3"))
+
+        // 准备新节点
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+
+        // 删除中间键(key2)
+        leafDelete(new, old, 1)
+
+        // 验证结果
+        if new.nkeys() != 2 {
+            t.Errorf("删除后键数量错误: 期望 2, 得到 %d", new.nkeys())
+        }
+        testKV(t, new, 0, []byte("key1"), []byte("val1"))
+        testKV(t, new, 1, []byte("key3"), []byte("val3"))
+    })
+
+    // 测试用例2：删除第一个键
+    t.Run("删除第一个键", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_LEAF, 2)
+        nodeAppendKV(old, 0, 0, []byte("first"), []byte("val1"))
+        nodeAppendKV(old, 1, 0, []byte("second"), []byte("val2"))
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        leafDelete(new, old, 0)
+
+        if new.nkeys() != 1 {
+            t.Errorf("删除后键数量错误: 期望 1, 得到 %d", new.nkeys())
+        }
+        testKV(t, new, 0, []byte("second"), []byte("val2"))
+    })
+
+    // 测试用例3：删除最后一个键
+    t.Run("删除最后一个键", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_LEAF, 3)
+        nodeAppendKV(old, 0, 0, []byte("k1"), []byte("v1"))
+        nodeAppendKV(old, 1, 0, []byte("k2"), []byte("v2"))
+        nodeAppendKV(old, 2, 0, []byte("k3"), []byte("v3"))
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        leafDelete(new, old, 2)
+
+        if new.nkeys() != 2 {
+            t.Errorf("删除后键数量错误: 期望 2, 得到 %d", new.nkeys())
+        }
+        testKV(t, new, 0, []byte("k1"), []byte("v1"))
+        testKV(t, new, 1, []byte("k2"), []byte("v2"))
+    })
+
+    // 测试用例4：验证偏移量正确性
+    t.Run("验证偏移量", func(t *testing.T) {
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_LEAF, 3)
+        nodeAppendKV(old, 0, 0, []byte("short"), []byte("val"))
+        nodeAppendKV(old, 1, 0, []byte("longkey"), []byte("longvalue"))
+        nodeAppendKV(old, 2, 0, []byte("normal"), []byte("value"))
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        leafDelete(new, old, 1) // 删除中间的"longkey"
+
+        // 验证偏移量
+        // 第一个键值对偏移量应为0
+        testOffset(t, new, 0, 0)
+        // 第二个键值对偏移量应为第一个键值对的总长度
+        expectedOffset := uint16(4 + len("short") + len("val"))
+        testOffset(t, new, 1, expectedOffset)
+        // 结束偏移量
+        expectedEndOffset := expectedOffset + uint16(4 + len("normal") + len("value"))
+        testOffset(t, new, 2, expectedEndOffset)
+    })
+
+    // 测试用例5：边界条件测试
+    t.Run("边界条件测试", func(t *testing.T) {
+        // 测试删除唯一键
+        old := BNode(make([]byte, BTREE_PAGE_SIZE))
+        old.setHeader(BNODE_LEAF, 1)
+        nodeAppendKV(old, 0, 0, []byte("only"), []byte("key"))
+
+        new := BNode(make([]byte, BTREE_PAGE_SIZE))
+        leafDelete(new, old, 0)
+
+        if new.nkeys() != 0 {
+            t.Errorf("删除唯一键后键数量错误: 期望 0, 得到 %d", new.nkeys())
+        }
+    })
+}
+
 func TestNodeLookupLE(t *testing.T) {
 	// 准备测试数据 - 创建一个包含多个键的B树节点
 	createTestNode := func() BNode {

@@ -154,6 +154,16 @@ func leafUpdata(new BNode, old BNode, idx uint16, key []byte, val []byte) {
 	nodeAppendRange(new, old, idx+1, idx+1, old.nkeys()-idx-1)
 }
 
+// 从leafNode 移除key
+func leafDelete(new BNode, old BNode, idx uint16) {
+	new.setHeader(BNODE_LEAF, old.nkeys()-1)
+    // 1. 复制删除位置之前的所有键值对
+	nodeAppendRange(new,old, 0, 0, idx)
+    // 2. 跳过要删除的键值对(idx位置)
+    // 3. 复制删除位置之后的所有键值对
+	nodeAppendRange(new, old, idx, idx+1, old.nkeys()-idx-1)
+}
+
 // nodeLookupLE 查找小于等于给定键的最大索引
 func nodeLookupLE(node BNode, key []byte) uint16 {
 	nkeys := node.nkeys()
@@ -219,11 +229,6 @@ func nodeSplit3(old BNode) (uint16, [3]BNode) {
 	nodeSplit2(leftleft, middle, left)
 	// assert(leftleft.nbytes() <= BTREE_PAGE_SIZE)
 	return 3, [3]BNode{leftleft, middle, right} // 3 nodes
-}
-
-// 从leafNode 移除key
-func leafDelete(new BNode, old BNode, idx uint16) {
-	panic("not implementation")
 }
 
 // 合并两个节点成一个
