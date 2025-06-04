@@ -223,15 +223,17 @@ func nodeSplit3(old BNode) (uint16, [3]BNode) {
 
 // 从leafNode 移除key
 func leafDelete(new BNode, old BNode, idx uint16) {
-
+	panic("not implementation")
 }
 
 // 合并两个节点成一个
 func nodeMerge(new BNode, left BNode, right BNode) {
-
+	new.setHeader(BNODE_LEAF, left.nkeys()+right.nkeys())
+	nodeAppendRange(new, left, 0, 0, left.nkeys())
+	nodeAppendRange(new, right, left.nkeys(), 0, right.nkeys())
 }
 
 // 用1替换2个相邻链接
 func nodeReplace2Kid(new BNode, old BNode, idx uint16, ptr uint64, key []byte) {
-
+	panic("not implementation")
 }
