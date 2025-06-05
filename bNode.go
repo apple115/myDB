@@ -157,10 +157,10 @@ func leafUpdata(new BNode, old BNode, idx uint16, key []byte, val []byte) {
 // 从leafNode 移除key
 func leafDelete(new BNode, old BNode, idx uint16) {
 	new.setHeader(BNODE_LEAF, old.nkeys()-1)
-    // 1. 复制删除位置之前的所有键值对
-	nodeAppendRange(new,old, 0, 0, idx)
-    // 2. 跳过要删除的键值对(idx位置)
-    // 3. 复制删除位置之后的所有键值对
+	// 1. 复制删除位置之前的所有键值对
+	nodeAppendRange(new, old, 0, 0, idx)
+	// 2. 跳过要删除的键值对(idx位置)
+	// 3. 复制删除位置之后的所有键值对
 	nodeAppendRange(new, old, idx, idx+1, old.nkeys()-idx-1)
 }
 
@@ -240,14 +240,11 @@ func nodeMerge(new BNode, left BNode, right BNode) {
 
 // 用1替换2个相邻链接
 func nodeReplace2Kid(new BNode, old BNode, idx uint16, ptr uint64, key []byte) {
-    // 设置新节点头部信息（类型和键数量）
-    new.setHeader(BNODE_NODE, old.nkeys()-1) // 减少一个键
-
-    // 1. 复制idx之前的所有指针和键
-    nodeAppendRange(new, old, 0, 0, idx)
-
-    nodeAppendKV(new, idx, ptr, key, nil) // 添加分隔键（内部节点val为nil）
-
-    // 3. 跳过被替换的两个指针和一个键，复制剩余部分
-    nodeAppendRange(new, old, idx+1, idx+2, old.nkeys()-(idx+2))
+	// 设置新节点头部信息（类型和键数量）
+	new.setHeader(BNODE_NODE, old.nkeys()-1) // 减少一个键
+	// 1. 复制idx之前的所有指针和键
+	nodeAppendRange(new, old, 0, 0, idx)
+	nodeAppendKV(new, idx, ptr, key, nil) // 添加分隔键（内部节点val为nil）
+	// 3. 跳过被替换的两个指针和一个键，复制剩余部分
+	nodeAppendRange(new, old, idx+1, idx+2, old.nkeys()-(idx+2))
 }
