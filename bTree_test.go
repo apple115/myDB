@@ -80,12 +80,17 @@ func TestBTreeInsert(t *testing.T) {
 		// 验证所有键都存在
 		for i := 0; i < 50; i++ {
 			key := []byte(fmt.Sprintf("key%03d", i))
-			foundVal,found := treeSearch(&c.tree, c.tree.root, key)
-			if !found{
-				t.Errorf("键未找到：%q",key)
+			foundVal, found := treeSearch(&c.tree, c.tree.root, key)
+			if !found {
+				t.Errorf("键未找到：%q", key)
 			}
-			if !bytes.Equal(foundVal, []byte(largeVal)){
-				t.Errorf("键 %q 的值不匹配",key)
+			if !bytes.Equal(foundVal, []byte(largeVal)) {
+				t.Errorf("键 %q 的值不匹配", key)
+			}
+		}
+	})
+}
+
 func TestBTree(t *testing.T) {
 	t.Run("钥匙已排序", func(t *testing.T) {
 		c := newC()
