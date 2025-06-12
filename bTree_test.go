@@ -19,7 +19,7 @@ func newC() *C {
 	return &C{
 		tree: BTree{
 			get: func(ptr uint64) []byte {
-				node, _ := pages[ptr]
+				node := pages[ptr]
 				// assert(ok)
 				return node
 			},
@@ -38,6 +38,33 @@ func newC() *C {
 		ref:   map[string]string{},
 		pages: pages,
 	}
+}
+func (c *C) PrintTree() {
+	// fmt.Printf("Root page: %d\n", c.pages[c.tree.root])
+	fmt.Println("Pages:")
+	for pt, node := range c.pages {
+		fmt.Println("Pointer:", pt)
+		fmt.Println("data: ", node)
+	}
+}
+
+func treeSearch(tree *BTree, ptr uint64, key []byte) ([]byte, bool) {
+	node := BNode(tree.get(ptr))
+	idx := nodeLookupLE(node, key)
+	if idx == 0{
+		return nil, false
+	}
+	switch node.btype() {
+	case BNODE_LEAF:
+		if bytes.Equal(node.getKey(idx), key) {
+			return node.getVal(idx), true
+		}
+	case BNODE_NODE:
+		return treeSearch(tree, node.getPtr(idx), key)
+	default:
+		panic("treeSearch: bad node type")
+	}
+	return nil, false
 }
 
 func (c *C) add(key string, val string) {
@@ -88,6 +115,99 @@ func TestBTreeInsert(t *testing.T) {
 				t.Errorf("键 %q 的值不匹配", key)
 			}
 		}
+	})
+}
+
+func TestTreeDelete(t *testing.T) {
+	t.Run("delete from leaf node", func(t *testing.T) {
+		c := newC()
+
+		// Setup test data
+		c.add("key1", "val1")
+		c.add("key2", "val2")
+		c.add("key3", "val3")
+
+		// Get the leaf node
+		leafPtr := c.tree.root
+		if BNode(c.tree.get(leafPtr)).btype() == BNODE_NODE {
+			leafPtr = BNode(c.tree.get(leafPtr)).getPtr(0)
+		}
+
+		testKV(t, c.tree.get(c.tree.root), 1, []byte("key1"), []byte("val1"))
+		testKV(t, c.tree.get(c.tree.root), 2, []byte("key2"), []byte("val2"))
+		testKV(t, c.tree.get(c.tree.root), 3, []byte("key3"), []byte("val3"))
+		leaf := BNode(c.tree.get(leafPtr))
+		// Test deletion
+		result := treeDelete(&c.tree, leaf, []byte("key2"))
+		if len(result) == 0 {
+			t.Error("Failed to delete existing key")
+		}
+		// Verify result
+		if result.nkeys() != 3 {
+			t.Errorf("Expected 3 keys after deletion, got %d", result.nkeys())
+		}
+		testKV(t, result, 1, []byte("key1"), []byte("val1"))
+		testKV(t, result, 2, []byte("key3"), []byte("val3"))
+	})
+
+	t.Run("delete non-existent key", func(t *testing.T) {
+		c := newC()
+		c.add("key1", "val1")
+
+		leafPtr := c.tree.root
+		if BNode(c.tree.get(leafPtr)).btype() == BNODE_NODE {
+			leafPtr = BNode(c.tree.get(leafPtr)).getPtr(0)
+		}
+		leaf := BNode(c.tree.get(leafPtr))
+
+		result := treeDelete(&c.tree, leaf, []byte("nonexistent"))
+		if len(result) != 0 {
+			t.Error("Expected empty result for non-existent key")
+		}
+	})
+
+	t.Run("delete from internal node", func(t *testing.T) {
+		c := newC()
+
+		// Insert enough data to create a multi-level tree
+		//6*100 + 3+100
+		for i := 0; i < 1000; i++ {
+			key := fmt.Sprintf("key%03d", i)
+			c.add(key, "value")
+		}
+
+		// Get an internal node
+		root := BNode(c.tree.get(c.tree.root))
+		if root.btype() != BNODE_NODE {
+			t.Fatal("Expected internal node")
+		}
+		c.PrintTree()
+
+		// Test deletion
+		testKey := []byte("key050")
+		result := treeDelete(&c.tree, root, testKey)
+		if len(result) == 0 {
+			t.Error("Failed to delete from internal node")
+		}
+
+		// Verify the key is actually gone
+		if _, found := treeSearch(&c.tree, c.tree.root, testKey); found {
+			t.Error("Key still exists after deletion")
+		}
+	})
+
+	t.Run("invalid node type", func(t *testing.T) {
+		c := newC()
+		badNode := BNode(make([]byte, BTREE_PAGE_SIZE))
+		badNode.setHeader(3, 0) // Invalid type
+
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for bad node type")
+			}
+		}()
+
+		treeDelete(&c.tree, badNode, []byte("any"))
 	})
 }
 

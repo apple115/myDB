@@ -41,7 +41,30 @@ func (tree *BTree) Insert(key []byte, val []byte) {
 }
 
 func (tree *BTree) Delete(key []byte) (bool, error) {
-	panic("not implementation")
+	if tree.root == 0 {
+		return false, nil //空节点
+	}
+	updated := treeDelete(tree, tree.get(tree.root), key)
+	if len(updated) == 0 {
+		return false, nil // key 没有找到
+	}
+
+	tree.del(tree.root) //free old root
+
+	if updated.nkeys() == 0 {
+		tree.root = 0
+		return true, nil
+	}
+
+	if updated.btype() == BNODE_NODE && updated.nkeys() == 1 {
+		//如果内部节点只有一个key，则将其提升为根节点
+		tree.root = updated.getPtr(0)
+		return true, nil
+	}
+
+	//否则保持更新后的节点作为根节点
+	tree.root = tree.new(updated)
+	return true, nil
 }
 
 func treeInsert(tree *BTree, node BNode, key []byte, val []byte) BNode {
@@ -80,7 +103,21 @@ func nodeReplaceKidN(
 }
 
 func treeDelete(tree *BTree, node BNode, key []byte) BNode {
-	panic("not implementation")
+	idx := nodeLookupLE(node, key)
+
+	switch node.btype() {
+	case BNODE_LEAF:
+		if !bytes.Equal(key, node.getKey(idx)) {
+			return BNode{}
+		}
+		new := BNode(make([]byte, BTREE_PAGE_SIZE))
+		leafDelete(new, node, idx)
+		return new
+	case BNODE_NODE:
+		return nodeDelete(tree, node, idx, key)
+	default:
+		panic("treeDelete: bad node!")
+	}
 }
 
 // 删除一个key从一个internal node；treeDelete的一部分
@@ -148,21 +185,4 @@ func shouldMerge(tree *BTree, node BNode, idx uint16, updated BNode) (int, BNode
 		}
 	}
 	return 0, BNode{}
-}
-
-func treeSearch(tree *BTree, ptr uint64, key []byte) ([]byte, bool) {
-	node := BNode(tree.get(ptr))
-	switch node.btype() {
-	case BNODE_LEAF:
-		idx := nodeLookupLE(node, key)
-		if bytes.Equal(node.getKey(idx), key) {
-			return node.getVal(idx), true
-		}
-	case BNODE_NODE:
-		idx := nodeLookupLE(node, key)
-		return treeSearch(tree, node.getPtr(idx), key)
-	default:
-		panic("not imp")
-	}
-	return nil, false
 }
